@@ -33,7 +33,7 @@ function admin_menu_netresults() {
 }
 
 function options_page_netresults() {
-  include(WP_PLUGIN_DIR.'/netresults/options.php');
+  include(WP_PLUGIN_DIR.'/net-results-marketing-automation/options.php');
 }
 
 function synchronous_netresults($ps_id) {
