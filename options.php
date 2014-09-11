@@ -16,7 +16,6 @@
 			</tr>
 			<tr valign="top">
 				<th scope="row">Net-Results Password:</th>
-				<!--<td><input type="text" name="nr_password" value="<?php echo get_option('nr_password'); ?>" /></td>-->
 				<td><input type="password" name="nr_password" value="" /></td>
 			</tr>
 		</table>
