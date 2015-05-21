@@ -3,7 +3,7 @@
 Plugin Name: Net-Results Marketing Automation
 Plugin URI: https://wordpress.org/plugins/net-results-marketing-automation/
 Description: Leverage Progressive Profiling in your web forms, instantly begin lead scoring every visitor to your WordPress site, automate marketing list management, lead nurturing and drip email campaigns. Includes a custom Widget for embedding Net-Results Forms and the automatic setup of Net-Results implementation code (this enables all features of the Net-Results Marketing Automation Platform on your WordPress site or blog).
-Version: 2.0
+Version: 2.1
 Author: <a href="http://www.net-results.com/" target="_blank">Net-Results Marketing Automation</a>
 */
 
@@ -22,23 +22,26 @@ if (!defined('WP_PLUGIN_DIR')) {
 
 function activate_netresults()
 {
-	add_option('ps_id');
-	add_option('nr_username');
-	add_option('nr_password');
+	add_option('nr_ps_id');
+	add_option('nr_access_token');
+	add_option('nr_client_id');
+	add_option('nr_client_secret');
 }
 
 function deactive_netresults()
 {
-	delete_option('ps_id');
-	delete_option('nr_username');
-	delete_option('nr_password');
+	delete_option('nr_ps_id');
+	delete_option('nr_access_token');
+	delete_option('nr_client_id');
+	delete_option('nr_client_secret');
 }
 
 function admin_init_netresults()
 {
-	register_setting('netresults', 'ps_id');
-	register_setting('netresults', 'nr_username');
-	register_setting('netresults', 'nr_password', 'ensureEncrypted');
+	register_setting('netresults', 'nr_ps_id');
+	register_setting('netresults', 'nr_access_token');
+	register_setting('netresults', 'nr_client_id');
+	register_setting('netresults', 'nr_client_secret');
 }
 
 function malog()
@@ -58,7 +61,7 @@ function options_page_netresults()
 
 function init_nr_tracking()
 {
-	$ps_id = get_option('ps_id');
+	$ps_id = get_option('nr_ps_id');
 	if (!empty($ps_id) && is_numeric($ps_id) && $ps_id > 0) {
 		echo <<<__nr_tracking_code__
 	<script id="__maSrc" type="text/javascript" data-pid="$ps_id">
@@ -82,14 +85,13 @@ function api_call($controller, $call_params)
 		'jsonrpc' => '2.0'
 	);
 	$params = array_merge($pre_params, $call_params);
-
+	$nr_client_id = get_option('nr_client_id');
+	$nr_client_secret = get_option('nr_client_secret');
+	$nr_access_token = get_option('nr_access_token');
+	$url = 'https://apps.net-results.com/api/v2/rpc/server.php?Controller=' . $controller . '&access_token='. $nr_access_token . '&client_id=' . $nr_client_id . '&client_secret=' . $nr_client_secret;
 	if (function_exists('curl_init')) {
-		$ch = curl_init();
-		curl_setopt($ch, CURLOPT_URL, "https://apps.net-results.com/api/v2/rpc/server.php?Controller=$controller");
+		$ch = curl_init($url);
 		curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-		$nr_username = get_option('nr_username');
-		$nr_password = decrypt(get_option('nr_password'));
-		curl_setopt($ch, CURLOPT_USERPWD, "$nr_username:$nr_password");
 		curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($params));
 		$strResponse = curl_exec($ch);
 		$arrResponse = json_decode($strResponse, true);
@@ -118,54 +120,14 @@ function api_get_forms()
 	return $response;
 }
 
-function ensureEncrypted($nr_password) {
-	if (strpos($nr_password, 'encrypted:') === 0) {
-		return $nr_password;
-	} else {
-		$new_pass = encrypt($nr_password);
-		return $new_pass;
-	}
-}
-
-function encrypt($nr_password)
-{
-	if (function_exists('mcrypt_get_iv_size')) {
-		$iv_size = mcrypt_get_iv_size(MCRYPT_RIJNDAEL_256, MCRYPT_MODE_ECB);
-		$iv = mcrypt_create_iv($iv_size, MCRYPT_RAND);
-		$h_key = hash('sha256', AUTH_KEY, true);
-		$pass = 'encrypted:' . base64_encode(mcrypt_encrypt(MCRYPT_RIJNDAEL_256, $h_key, $nr_password, MCRYPT_MODE_ECB, $iv));
-		return $pass;
-	} else {
-		malog('mcrypt extension not installed or enabled. cannot continue.');
-	}
-}
-
-function decrypt()
-{
-	if (function_exists('mcrypt_get_iv_size')) {
-		$key = AUTH_KEY;
-		$nr_password = get_option('nr_password');
-		if (strpos($nr_password, 'encrypted') !== 0) {
-			return $nr_password;
-		} else {
-			$nr_password = str_replace('encrypted:', '', $nr_password);
-		}
-		$iv_size = mcrypt_get_iv_size(MCRYPT_RIJNDAEL_256, MCRYPT_MODE_ECB);
-		$iv = mcrypt_create_iv($iv_size, MCRYPT_RAND);
-		$h_key = hash('sha256', $key, true);
-		$pass = trim(mcrypt_decrypt(MCRYPT_RIJNDAEL_256, $h_key, base64_decode($nr_password), MCRYPT_MODE_ECB, $iv));
-		return $pass;
-	} else {
-		malog('mcrypt extension not installed or enabled. cannot continue.');
-	}
-}
-
 register_activation_hook(__FILE__, 'activate_netresults');
 register_deactivation_hook(__FILE__, 'deactive_netresults');
 
 if (is_admin()) {
 	add_action('admin_init', 'admin_init_netresults');
 	add_action('admin_menu', 'admin_menu_netresults');
+	add_action('load-authorization.php', 'send_authorization_code');
+
 }
 
 if (!is_admin()) {
